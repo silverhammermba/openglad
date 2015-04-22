@@ -20,7 +20,6 @@
 #include "util.h"
 #include "pixdefs.h"
 
-#include "yam.h"
 #include "physfs.h"
 #include "physfsrwops.h"
 #include <string>
@@ -28,6 +27,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <yaml-cpp/yaml.h>
 
 #ifdef WIN32
 #include "windows.h"
@@ -818,19 +818,21 @@ bool create_new_campaign_descriptor(const std::string& filename)
 	if(outfile == NULL)
         return false;
     
-    Yam yam;
-    yam.set_output(rwops_write_handler, outfile);
+    YAML::Emitter out;
     
-    yam.emit_pair("format_version", "1");
-    yam.emit_pair("title", "New Campaign");
-    yam.emit_pair("version", "1");
-    yam.emit_pair("first_level", "1");
-    yam.emit_pair("suggested_power", "0");
-    yam.emit_pair("authors", "");
-    yam.emit_pair("contributors", "");
-    yam.emit_pair("description", "A new campaign.");
+    out << YAML::BeginMap;
+    out << YAML::Key << "format_version"  << YAML::Value << 1;
+    out << YAML::Key << "title"           << YAML::Value << "New Campaign";
+    out << YAML::Key << "version"         << YAML::Value << 1;
+    out << YAML::Key << "first_level"     << YAML::Value << 1;
+    out << YAML::Key << "suggested_power" << YAML::Value << 0;
+    out << YAML::Key << "authors"         << YAML::Value << "";
+    out << YAML::Key << "contributors"    << YAML::Value << "";
+    out << YAML::Key << "description"     << YAML::Value << "A new campaign.";
+    out << YAML::EndMap;
+
+    SDL_RWwrite(outfile, out.c_str(), 1, out.size());
     
-    yam.close_output();
     SDL_RWclose(outfile);
     return true;
 }

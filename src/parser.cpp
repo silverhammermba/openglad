@@ -28,7 +28,7 @@
 #include <cstring>
 #include "parser.h"
 #include "util.h"
-#include "yam.h"
+#include <yaml-cpp/yaml.h>
 
 // TODO: Move overscan setting and toInt() to this file.
 #include "input.h"
@@ -83,44 +83,23 @@ bool cfg_store::load_settings()
 		return false;
 	}
     
-    Yam yam;
-    yam.set_input(rwops_read_handler, rwops);
+	char* config = read_rest_of_file(rwops);
+    SDL_RWclose(rwops);
+	YAML::Node node = YAML::Load(config);
+	delete[] config;
     
     std::string last_scalar;
     std::string current_category;
-    
-    Yam::ParseResultEnum parse_result;
-    while((parse_result = yam.parse_next()) == Yam::OK)
-    {
-        switch(yam.event.type)
-        {
-            case Yam::BEGIN_SEQUENCE:
-                break;
-            case Yam::END_SEQUENCE:
-                break;
-            case Yam::BEGIN_MAPPING:
-                current_category = last_scalar;
-                break;
-            case Yam::END_MAPPING:
-                break;
-            case Yam::ALIAS:
-                break;
-            case Yam::PAIR:
-                apply_setting(current_category, yam.event.scalar, yam.event.value);
-                break;
-            case Yam::SCALAR:
-                last_scalar = yam.event.scalar;
-                break;
-            default:
-                break;
-        }
-    }
-    
-    if(parse_result == Yam::ERROR)
-        Log("Parsing error.\n");
-    
-    yam.close_input();
-    SDL_RWclose(rwops);
+
+	for (YAML::const_iterator it = node.begin(); it != node.end(); ++it)
+	{
+		if (!it->second.IsMap()) continue;
+
+		for (YAML::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
+		{
+			apply_setting(it->first.as<std::string>(), jt->first.as<std::string>(), jt->second.as<std::string>());
+		}
+	}
     
     // Update game stuff from these settings
     overscan_percentage = toInt(get_setting("graphics", "overscan_percentage"))/100.0f;
@@ -137,43 +116,39 @@ bool cfg_store::save_settings()
     apply_setting("graphics", "overscan_percentage", buf);
     
     SDL_RWops* outfile = open_write_file("cfg/openglad.yaml");
-    if(outfile != NULL)
-    {
-        Log("Saving settings\n");
-        
-        Yam yam;
-        yam.set_output(rwops_write_handler, outfile);
-        
-        // Each category is a mapping that holds setting/value pairs
-        for(auto e = data.begin(); e != data.end(); e++)
-        {
-            if(e->first.size() > 0)
-            {
-                yam.emit_scalar(e->first.c_str());
-                yam.emit_begin_mapping();
-            }
-            
-            for(auto f = e->second.begin(); f != e->second.end(); f++)
-            {
-                yam.emit_pair(f->first.c_str(), f->second.c_str());
-            }
-            
-            if(e->first.size() > 0)
-            {
-                yam.emit_end_mapping();
-            }
-        }
-        
-        yam.close_output();
-        SDL_RWclose(outfile);
-        
-        return true;
-    }
-    else
+    if(outfile == NULL)
     {
         Log("Couldn't open cfg/openglad.yaml for writing.\n");
         return false;
     }
+
+	Log("Saving settings\n");
+	
+	YAML::Emitter out;
+	
+	// Each category is a mapping that holds setting/value pairs
+	for(auto e = data.begin(); e != data.end(); ++e)
+	{
+		if(e->first.size() > 0)
+		{
+			out << e->first.c_str() << YAML::BeginMap;
+		}
+		
+		for(auto f = e->second.begin(); f != e->second.end(); f++)
+		{
+			out << YAML::Key << f->first.c_str() << YAML::Value << f->second.c_str();
+		}
+		
+		if(e->first.size() > 0)
+		{
+			out << YAML::EndMap;
+		}
+	}
+	
+	SDL_RWwrite(outfile, out.c_str(), 1, out.size());
+	SDL_RWclose(outfile);
+	
+	return true;
 }
 
 void cfg_store::commandline(int &argc, char **&argv)

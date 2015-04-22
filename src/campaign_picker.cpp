@@ -17,7 +17,6 @@
 
 #include "campaign_picker.h"
 #include "io.h"
-#include "yam.h"
 #include "pixie.h"
 #include "text.h"
 #include "guy.h"
@@ -25,7 +24,7 @@
 #include "button.h"
 #include <vector>
 #include <string>
-
+#include <yaml-cpp/yaml.h>
 
 bool yes_or_no_prompt(const char* title, const char* message, bool default_value);
 bool no_or_yes_prompt(const char* title, const char* message, bool default_value);
@@ -100,37 +99,31 @@ CampaignEntry::CampaignEntry(const std::string& id, int num_levels_completed)
     if(mount_campaign_package(id))
     {
         SDL_RWops* rwops = open_read_file("campaign.yaml");
+		char* campaign = read_rest_of_file(rwops);
+		SDL_RWclose(rwops);
+		YAML::Node node = YAML::Load(campaign);
+		delete[] campaign;
         
-        Yam yam;
-        yam.set_input(rwops_read_handler, rwops);
-        
-        while(yam.parse_next() == Yam::OK)
-        {
-            switch(yam.event.type)
-            {
-                case Yam::PAIR:
-                    if(strcmp(yam.event.scalar, "title") == 0)
-                        title = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "version") == 0)
-                        version = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "authors") == 0)
-                        authors = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "contributors") == 0)
-                        contributors = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "description") == 0)
-                        description = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "suggested_power") == 0)
-                        suggested_power = toInt(yam.event.value);
-                    else if(strcmp(yam.event.scalar, "first_level") == 0)
-                        first_level = toInt(yam.event.value);
-                break;
-                default:
-                    break;
-            }
-        }
-        
-        yam.close_input();
-        SDL_RWclose(rwops);
+		for (YAML::const_iterator it = node.begin(); it != node.end(); ++it)
+		{
+			auto key = it->first.as<std::string>();
+			auto value = it->second.as<std::string>();
+
+			if (key == "title")
+				title = value;
+			else if (key == "version")
+				version = value;
+			else if (key == "authors")
+				authors = value;
+			else if (key == "contributors")
+				contributors = value;
+			else if (key == "description")
+				description = value;
+			else if (key == "suggested_power")
+				suggested_power = it->second.as<int>();
+			else if (key == "first_level")
+				first_level = it->second.as<int>();
+		}
         
         // TODO: Get rating from website
         rating = 0.0f;

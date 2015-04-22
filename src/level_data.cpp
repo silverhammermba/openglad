@@ -16,7 +16,6 @@
  */
 
 #include "level_data.h"
-#include "yam.h"
 
 #include "pixie.h"
 #include "loader.h"
@@ -26,6 +25,8 @@
 #include "screen.h"
 #include "view.h"
 #include <algorithm>
+#include <sstream>
+#include <yaml-cpp/yaml.h>
 
 
 int toInt(const std::string& s);
@@ -57,40 +58,32 @@ bool CampaignData::load()
     if(mount_campaign_package(id))
     {
         SDL_RWops* rwops = open_read_file("campaign.yaml");
+		char* campaign = read_rest_of_file(rwops);
+		SDL_RWclose(rwops);
+		YAML::Node node = YAML::Load(campaign);
+		delete[] campaign;
         
-        Yam yam;
-        yam.set_input(rwops_read_handler, rwops);
-        
-        while(yam.parse_next() == Yam::OK)
-        {
-            switch(yam.event.type)
-            {
-                case Yam::PAIR:
-                    if(strcmp(yam.event.scalar, "title") == 0)
-                        title = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "version") == 0)
-                        version = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "authors") == 0)
-                        authors = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "contributors") == 0)
-                        contributors = yam.event.value;
-                    else if(strcmp(yam.event.scalar, "description") == 0)
-                    {
-                        std::string desc = yam.event.value;
-                        description = explode(desc, '\n');
-                    }
-                    else if(strcmp(yam.event.scalar, "suggested_power") == 0)
-                        suggested_power = toInt(yam.event.value);
-                    else if(strcmp(yam.event.scalar, "first_level") == 0)
-                        first_level = toInt(yam.event.value);
-                break;
-                default:
-                    break;
-            }
-        }
-        
-        yam.close_input();
-        SDL_RWclose(rwops);
+		for (YAML::const_iterator it = node.begin(); it != node.end(); ++it)
+		{
+			auto key = it->first.as<std::string>();
+			auto value = it->second.as<std::string>();
+
+			if (key == "title")
+				title = value;
+			else if (key == "version")
+				version = value;
+			else if (key == "authors")
+				authors = value;
+			else if (key == "contributors")
+				contributors = value;
+			else if (key == "description")
+				description = explode(value, '\n');
+			else if (key == "suggested_power")
+				suggested_power = it->second.as<int>();
+			else if (key == "first_level")
+				first_level = it->second.as<int>();
+
+		}
         
         // TODO: Get rating from website
         rating = 0.0f;
@@ -131,35 +124,29 @@ bool CampaignData::save_as(const std::string& new_id)
         {
             char buf[40];
             
-            Yam yam;
-            yam.set_output(rwops_write_handler, outfile);
+			YAML::Emitter out;
             
-            yam.emit_pair("format_version", "1");
-            yam.emit_pair("title", title.c_str());
-            yam.emit_pair("version", version.c_str());
+			out << YAML::BeginMap
+			    << YAML::Key << "format_version"  << YAML::Value << 1
+			    << YAML::Key << "title"           << YAML::Value << title
+			    << YAML::Key << "version"         << YAML::Value << version
+			    << YAML::Key << "first_level"     << YAML::Value << first_level
+			    << YAML::Key << "suggested_power" << YAML::Value << suggested_power
+			    << YAML::Key << "authors"         << YAML::Value << authors
+			    << YAML::Key << "contributors"    << YAML::Value << contributors;
             
-            snprintf(buf, 40, "%d", first_level);
-            yam.emit_pair("first_level", buf);
-            
-            snprintf(buf, 40, "%d", suggested_power);
-            yam.emit_pair("suggested_power", buf);
-            
-            yam.emit_pair("authors", authors.c_str());
-            yam.emit_pair("contributors", contributors.c_str());
-            
-            std::string desc;
-            for(std::list<std::string>::const_iterator e = description.begin(); e != description.end();)
+			std::ostringstream desc;
+            for(std::list<std::string>::const_iterator e = description.begin(); e != description.end(); ++e)
             {
-                desc += *e;
-                
-                e++;
-                if(e != description.end())
-                    desc += '\n';
+                if(e != description.begin())
+                    desc << '\n';
+				desc << *e;
             }
             
-            yam.emit_pair("description", desc.c_str());
-            
-            yam.close_output();
+			out << YAML::Key << "description" << YAML::Value << desc.str()
+				<< YAML::EndMap;
+
+			SDL_RWwrite(outfile, out.c_str(), 1, out.size());
             SDL_RWclose(outfile);
             
         }

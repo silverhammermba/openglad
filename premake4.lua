@@ -47,7 +47,7 @@ solution "Openglad"
 	  defines { "PHYSFS_SUPPORTS_ZIP" }
 	  buildoptions { "-std=gnu++0x" }
 	
-	  links { "SDL2main", "SDL2", "SDL2_mixer", "png" }
+	  links { "SDL2main", "SDL2", "SDL2_mixer", "png", "yaml-cpp" }
 	  includedirs { "src/external/**" }
  
       configuration "Debug"

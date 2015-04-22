@@ -34,6 +34,7 @@ SDL_RWops* open_read_file(const char* file);
 SDL_RWops* open_read_file(const char* path, const char* file);
 SDL_RWops* open_write_file(const char* file);
 SDL_RWops* open_write_file(const char* path, const char* file);
+char* read_rest_of_file(SDL_RWops* rwops);
 
 std::list<std::string> list_files(const std::string& dirname);
 

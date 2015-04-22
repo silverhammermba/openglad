@@ -170,6 +170,20 @@ SDL_RWops* open_write_file(const char* path, const char* file)
 }
 
 
+char* read_rest_of_file(SDL_RWops* rwops)
+{
+	if (rwops == NULL) return NULL;
+	auto start = SDL_RWtell(rwops);
+	SDL_RWseek(rwops, 0, RW_SEEK_END);
+	auto end = SDL_RWtell(rwops);
+	SDL_RWseek(rwops, start, RW_SEEK_SET);
+	if (end < 0) return NULL;
+	char* contents = new char[end - start + 1];
+	SDL_RWread(rwops, contents, 1, end - start);
+	contents[end - start] = '\0';
+	return contents;
+}
+
 
 std::list<std::string> list_files(const std::string& dirname)
 {
